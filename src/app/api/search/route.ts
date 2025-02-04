@@ -5,16 +5,16 @@ import {
   parseQueryToJSON,
   searchGoogle,
 } from "@/utils/ai-config";
-import { ScholarshipSearchParams } from "@/types";
+// import { ScholarshipSearchParams } from "@/types";
 
-const SEARCH_STEPS = [
-  "Analyzing student background",
-  "Searching scholarship databases",
-  "Matching eligibility criteria",
-  "Verifying deadlines",
-  "Generating recommendations",
-  "Preparing additional resources",
-];
+// const SEARCH_STEPS = [
+//   "Analyzing student background",
+//   "Searching scholarship databases",
+//   "Matching eligibility criteria",
+//   "Verifying deadlines",
+//   "Generating recommendations",
+//   "Preparing additional resources",
+// ];
 
 // Step 1: Parse natural language query
 export async function POST(req: Request) {

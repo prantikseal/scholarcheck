@@ -16,13 +16,13 @@ import {
   IconArrowRight,
 } from "@tabler/icons-react";
 
-const SEARCH_STEPS = [
-  "Analyzing student background",
-  "Searching scholarship databases",
-  "Matching eligibility criteria",
-  "Verifying deadlines",
-  "Generating recommendations",
-];
+// const SEARCH_STEPS = [
+//   "Analyzing student background",
+//   "Searching scholarship databases",
+//   "Matching eligibility criteria",
+//   "Verifying deadlines",
+//   "Generating recommendations",
+// ];
 
 interface Scholarship {
   title: string;
@@ -309,7 +309,7 @@ export default function Home() {
             >
               <SearchAnimation
                 currentStep={currentStep}
-                steps={SEARCH_STEPS}
+                // steps={SEARCH_STEPS}
                 searchQuery={searchQuery}
               />
             </motion.div>
