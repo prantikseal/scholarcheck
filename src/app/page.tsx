@@ -1,101 +1,420 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { SearchAnimation } from "@/components/SearchAnimation";
+import { ScholarshipCard } from "@/components/ScholarshipCard";
+import { BackgroundBeams } from "@/components/ui/background-beams";
+import { SparklesText } from "@/components/ui/sparkles";
+import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
+import { CardHoverEffect } from "@/components/ui/card-hover-effect";
+import { parseQueryToJSON } from "@/utils/ai-config";
+import {
+  IconSearch,
+  IconSchool,
+  IconBulb,
+  IconCertificate,
+  IconArrowRight,
+} from "@tabler/icons-react";
+
+const SEARCH_STEPS = [
+  "Analyzing student background",
+  "Searching scholarship databases",
+  "Matching eligibility criteria",
+  "Verifying deadlines",
+  "Generating recommendations",
+];
+
+interface Scholarship {
+  title: string;
+  institution: string;
+  description: string;
+  eligibility: string;
+  amount?: string;
+  deadline?: string;
+  applicationLink?: string;
+  requirements?: string[];
+  selectionProcess?: string;
+  background?: string;
+}
+
+const EXAMPLE_QUERIES = [
+  "Find scholarships for Hindu SC students in engineering",
+  "Muslim OBC scholarships for medical studies",
+  "Christian minority scholarships in Maharashtra",
+  "Buddhist student scholarships for postgraduate studies",
+];
+
+const FEATURES = [
+  {
+    icon: <IconSearch className="w-6 h-6" />,
+    title: "Smart Search",
+    description: "AI-powered search that understands your background and needs",
+  },
+  {
+    icon: <IconSchool className="w-6 h-6" />,
+    title: "Comprehensive Database",
+    description:
+      "Access scholarships from government, private, and institutional sources",
+  },
+  {
+    icon: <IconBulb className="w-6 h-6" />,
+    title: "Personalized Matches",
+    description:
+      "Get scholarships that match your unique profile and eligibility",
+  },
+  {
+    icon: <IconCertificate className="w-6 h-6" />,
+    title: "Verified Information",
+    description:
+      "Up-to-date details about deadlines, amounts, and application processes",
+  },
+];
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [loading, setLoading] = useState(false);
+  const [currentStep, setCurrentStep] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [scholarships, setScholarships] = useState<Scholarship[]>([]);
+  const [summary, setSummary] = useState<string>("");
+  const [recommendations, setRecommendations] = useState<string[]>([]);
+  const [additionalResources, setAdditionalResources] = useState<
+    Array<{
+      title: string;
+      description: string;
+      link: string;
+    }>
+  >([]);
+  const [error, setError] = useState<string>("");
+  const [showExamples, setShowExamples] = useState(true);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setLoading(true);
+    setError("");
+    setScholarships([]);
+    setSummary("");
+    setRecommendations([]);
+    setAdditionalResources([]);
+    setShowExamples(false);
+
+    // Start the search animation
+    let stepIndex = 0;
+    const stepInterval = setInterval(() => {
+      if (stepIndex < SEARCH_STEPS.length) {
+        setCurrentStep(SEARCH_STEPS[stepIndex]);
+        stepIndex++;
+      }
+    }, 2000);
+
+    try {
+      // Use AI to parse the query into structured data
+      const searchParams = await parseQueryToJSON(searchQuery);
+
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(searchParams),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setScholarships(data.scholarships);
+        setSummary(data.summary);
+        setRecommendations(data.recommendations || []);
+        setAdditionalResources(data.additionalResources || []);
+      }
+    } catch (error) {
+      setError("Failed to search for scholarships. Please try again.");
+      console.error("Search error:", error);
+    } finally {
+      clearInterval(stepInterval);
+      setLoading(false);
+      setCurrentStep("");
+    }
+  };
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.3,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 },
+  };
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white relative">
+      <BackgroundBeams />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="text-center mb-16"
+        >
+          <SparklesText className="inline-block">
+            <motion.h1
+              variants={itemVariants}
+              className="text-4xl md:text-7xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-blue-600 mb-6"
+            >
+              ScholarCheck AI
+            </motion.h1>
+          </SparklesText>
+          <motion.div variants={itemVariants} className="max-w-2xl mx-auto">
+            <TextGenerateEffect
+              words="Find scholarships tailored to your background using AI-powered search"
+              className="text-xl text-blue-200"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          </motion.div>
+        </motion.div>
+
+        <motion.form
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          onSubmit={handleSearch}
+          className="max-w-3xl mx-auto space-y-8"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          <motion.div variants={itemVariants} className="relative group">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-6 py-4 text-lg bg-gray-800/50 border-2 border-blue-500/20 rounded-2xl 
+              focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 
+              hover:border-blue-500/30 
+              shadow-lg text-white placeholder-gray-400 pr-32 
+              transition-all duration-300 ease-in-out
+              backdrop-blur-sm"
+              placeholder="Describe your background and education interests..."
+              required
+            />
+            <motion.button
+              type="submit"
+              disabled={loading}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="absolute right-2 top-2 px-6 py-2 bg-blue-600 text-white rounded-xl 
+              hover:bg-blue-700 transition-all duration-300 
+              disabled:bg-blue-400 disabled:cursor-not-allowed
+              shadow-lg hover:shadow-blue-500/20
+              border border-blue-500/20 hover:border-blue-500/40"
+            >
+              <span className="flex items-center gap-2">
+                {loading ? "Searching..." : "Search"}
+                <IconArrowRight className="w-4 h-4" />
+              </span>
+            </motion.button>
+
+            {/* Input highlight effect */}
+            <div className="absolute inset-0 rounded-2xl bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+          </motion.div>
+        </motion.form>
+
+        <AnimatePresence>
+          {showExamples && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+              className="mt-6 max-w-3xl mx-auto"
+            >
+              <p className="text-sm text-gray-400 mb-3">Example searches:</p>
+              <div className="flex flex-wrap gap-2">
+                {EXAMPLE_QUERIES.map((query, index) => (
+                  <motion.button
+                    key={index}
+                    onClick={() => setSearchQuery(query)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="text-sm px-4 py-2 rounded-full bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 transition-colors"
+                  >
+                    {query}
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {!loading && !scholarships.length && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="mt-24"
+            >
+              <CardHoverEffect items={FEATURES} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {loading && currentStep && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+              className="mt-12"
+            >
+              <SearchAnimation
+                currentStep={currentStep}
+                steps={SEARCH_STEPS}
+                searchQuery={searchQuery}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="mt-8 p-4 bg-red-500/10 text-red-400 rounded-lg max-w-2xl mx-auto border border-red-500/20"
+            >
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {summary && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+              className="mt-12 p-6 bg-blue-500/10 rounded-xl max-w-3xl mx-auto border border-blue-500/20"
+            >
+              <h2 className="text-xl font-semibold mb-2 text-blue-300">
+                Summary
+              </h2>
+              <TextGenerateEffect words={summary} className="text-blue-200" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {recommendations.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+              className="mt-8 p-6 bg-blue-500/10 rounded-xl max-w-3xl mx-auto border border-blue-500/20"
+            >
+              <h2 className="text-xl font-semibold mb-4 text-blue-300">
+                Recommendations
+              </h2>
+              <ul className="space-y-2">
+                {recommendations.map((recommendation, index) => (
+                  <motion.li
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-start gap-3"
+                  >
+                    <span className="text-blue-400">•</span>
+                    <span className="text-blue-200">{recommendation}</span>
+                  </motion.li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {additionalResources.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+              className="mt-8 p-6 bg-blue-500/10 rounded-xl max-w-3xl mx-auto border border-blue-500/20"
+            >
+              <h2 className="text-xl font-semibold mb-4 text-blue-300">
+                Additional Resources
+              </h2>
+              <div className="grid gap-4">
+                {additionalResources.map((resource, index) => (
+                  <motion.a
+                    key={index}
+                    href={resource.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="block p-4 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 transition-colors border border-blue-500/20"
+                  >
+                    <h3 className="text-lg font-medium text-blue-300 mb-2">
+                      {resource.title}
+                    </h3>
+                    <p className="text-sm text-blue-200">
+                      {resource.description}
+                    </p>
+                  </motion.a>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {scholarships.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.8 }}
+              className="mt-12"
+            >
+              <h2 className="text-2xl font-semibold mb-6 text-center text-blue-200">
+                Available Scholarships
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {scholarships.map((scholarship, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{
+                      duration: 0.5,
+                      delay: index * 0.1,
+                    }}
+                  >
+                    <ScholarshipCard {...scholarship} />
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </main>
   );
 }
