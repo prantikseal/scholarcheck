@@ -131,8 +131,10 @@ interface GoogleSearchResponse {
   };
 }
 
-// Add Google Search integration
-async function searchGoogle(query: string): Promise<GoogleSearchResult[]> {
+// Export the searchGoogle function
+export async function searchGoogle(
+  query: string
+): Promise<GoogleSearchResult[]> {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_SEARCH_API_KEY;
   const searchEngineId = process.env.NEXT_PUBLIC_GOOGLE_CSE_ID;
 

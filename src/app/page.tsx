@@ -8,7 +8,6 @@ import { BackgroundBeams } from "@/components/ui/background-beams";
 import { SparklesText } from "@/components/ui/sparkles";
 import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
 import { CardHoverEffect } from "@/components/ui/card-hover-effect";
-import { parseQueryToJSON } from "@/utils/ai-config";
 import {
   IconSearch,
   IconSchool,
@@ -86,6 +85,13 @@ export default function Home() {
       link: string;
     }>
   >([]);
+  const [searchResults, setSearchResults] = useState<
+    Array<{
+      title: string;
+      link: string;
+      snippet?: string;
+    }>
+  >([]);
   const [error, setError] = useState<string>("");
   const [showExamples, setShowExamples] = useState(true);
 
@@ -99,44 +105,67 @@ export default function Home() {
     setSummary("");
     setRecommendations([]);
     setAdditionalResources([]);
+    setSearchResults([]);
     setShowExamples(false);
 
-    // Start the search animation
-    let stepIndex = 0;
-    const stepInterval = setInterval(() => {
-      if (stepIndex < SEARCH_STEPS.length) {
-        setCurrentStep(SEARCH_STEPS[stepIndex]);
-        stepIndex++;
-      }
-    }, 5000);
-
     try {
-      // Use AI to parse the query into structured data
-      const searchParams = await parseQueryToJSON(searchQuery);
-
-      const response = await fetch("/api/search", {
+      // Step 1: Parse the query
+      setCurrentStep("Analyzing search query");
+      const parseResponse = await fetch("/api/search", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(searchParams),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          searchType: "parseQuery",
+          query: searchQuery,
+        }),
       });
 
-      const data = await response.json();
+      if (!parseResponse.ok) throw new Error("Failed to parse query");
+      const { data: params } = await parseResponse.json();
 
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setScholarships(data.scholarships);
-        setSummary(data.summary);
-        setRecommendations(data.recommendations || []);
-        setAdditionalResources(data.additionalResources || []);
-      }
+      // Step 2: Search the web
+      setCurrentStep("Searching scholarship databases");
+      const searchResponse = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          searchType: "searchWeb",
+          params,
+        }),
+      });
+
+      if (!searchResponse.ok) throw new Error("Failed to search web");
+      const { data: webResults } = await searchResponse.json();
+      setSearchResults(webResults);
+
+      // Step 3: Generate final results
+      setCurrentStep("Generating recommendations");
+      const generateResponse = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          searchType: "generateResults",
+          params,
+          searchResults: webResults,
+        }),
+      });
+
+      if (!generateResponse.ok) throw new Error("Failed to generate results");
+      const { data: finalResults } = await generateResponse.json();
+
+      // Update UI with results
+      setScholarships(finalResults.scholarships);
+      setSummary(finalResults.summary);
+      setRecommendations(finalResults.recommendations || []);
+      setAdditionalResources(finalResults.additionalResources || []);
     } catch (error) {
-      setError("Failed to search for scholarships. Please try again.");
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to search for scholarships"
+      );
       console.error("Search error:", error);
     } finally {
-      clearInterval(stepInterval);
       setLoading(false);
       setCurrentStep("");
     }
@@ -377,6 +406,43 @@ export default function Home() {
                     <p className="text-sm text-blue-200">
                       {resource.description}
                     </p>
+                  </motion.a>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {searchResults.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+              className="mt-8 p-6 bg-blue-500/10 rounded-xl max-w-3xl mx-auto border border-blue-500/20"
+            >
+              <h2 className="text-xl font-semibold mb-4 text-blue-300">
+                Search Results
+              </h2>
+              <div className="space-y-4">
+                {searchResults.map((result, index) => (
+                  <motion.a
+                    key={index}
+                    href={result.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="block p-4 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 transition-colors"
+                  >
+                    <h3 className="text-lg font-medium text-blue-300 mb-2">
+                      {result.title}
+                    </h3>
+                    {result.snippet && (
+                      <p className="text-sm text-blue-200">{result.snippet}</p>
+                    )}
                   </motion.a>
                 ))}
               </div>
