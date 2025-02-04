@@ -5,6 +5,7 @@ import {
   parseQueryToJSON,
   searchGoogle,
 } from "@/utils/ai-config";
+import { Scholarship } from "@/types";
 // import { ScholarshipSearchParams } from "@/types";
 
 // const SEARCH_STEPS = [
@@ -15,6 +16,13 @@ import {
 //   "Generating recommendations",
 //   "Preparing additional resources",
 // ];
+
+function sendEvent(
+  data: Record<string, unknown> | string[] | string,
+  eventType: string
+) {
+  return `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+}
 
 // Step 1: Parse natural language query
 export async function POST(req: Request) {
@@ -39,33 +47,136 @@ export async function POST(req: Request) {
 
       case "generateResults": {
         const { params, searchResults } = body;
-        const result = await generateScholarshipSearch({
-          ...params,
-          searchResults,
-        });
-        const validatedResponse = validateResponse(result);
 
-        if (!validatedResponse.isValid) {
-          throw new Error("Failed to parse AI response");
-        }
-
-        // Create a streaming response
+        // Create a streaming response using Server-Sent Events
         const stream = new ReadableStream({
-          start(controller) {
-            controller.enqueue(
-              JSON.stringify({
-                success: true,
-                data: validatedResponse.data,
-              })
-            );
-            controller.close();
+          async start(controller) {
+            try {
+              // Send initial connection event
+              controller.enqueue(
+                new TextEncoder().encode(
+                  sendEvent({ status: "connected" }, "connect")
+                )
+              );
+
+              // Start AI processing
+              const resultPromise = generateScholarshipSearch({
+                ...params,
+                searchResults,
+              });
+
+              // Send a processing status immediately
+              controller.enqueue(
+                new TextEncoder().encode(
+                  sendEvent({ status: "processing" }, "status")
+                )
+              );
+
+              // Wait for AI response
+              const result = await resultPromise;
+              const validatedResponse = validateResponse(result);
+
+              if (!validatedResponse.isValid) {
+                throw new Error("Failed to parse AI response");
+              }
+
+              // Send summary immediately
+              controller.enqueue(
+                new TextEncoder().encode(
+                  sendEvent(validatedResponse.data.summary, "summary")
+                )
+              );
+
+              // Process scholarships in batches of 3 for better performance
+              const scholarships = validatedResponse.data.scholarships;
+              const batchSize = 3;
+
+              for (let i = 0; i < scholarships.length; i += batchSize) {
+                const batch = scholarships.slice(i, i + batchSize);
+                await Promise.all(
+                  batch.map(async (scholarship: Scholarship) => {
+                    controller.enqueue(
+                      new TextEncoder().encode(
+                        sendEvent(
+                          JSON.parse(JSON.stringify(scholarship)),
+                          "scholarship"
+                        )
+                      )
+                    );
+                  })
+                );
+                // Smaller delay between batches
+                if (i + batchSize < scholarships.length) {
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+              }
+
+              // Send recommendations and resources together if available
+              const finalDataPromises = [];
+
+              if (validatedResponse.data.recommendations) {
+                finalDataPromises.push(
+                  controller.enqueue(
+                    new TextEncoder().encode(
+                      sendEvent(
+                        validatedResponse.data.recommendations,
+                        "recommendations"
+                      )
+                    )
+                  )
+                );
+              }
+
+              if (validatedResponse.data.additionalResources) {
+                finalDataPromises.push(
+                  controller.enqueue(
+                    new TextEncoder().encode(
+                      sendEvent(
+                        validatedResponse.data.additionalResources,
+                        "resources"
+                      )
+                    )
+                  )
+                );
+              }
+
+              // Wait for all final data to be sent
+              await Promise.all(finalDataPromises);
+
+              // Send completion event
+              controller.enqueue(
+                new TextEncoder().encode(
+                  sendEvent({ status: "complete" }, "complete")
+                )
+              );
+            } catch (error) {
+              // Send error event if something fails
+              controller.enqueue(
+                new TextEncoder().encode(
+                  sendEvent(
+                    {
+                      error:
+                        error instanceof Error
+                          ? error.message
+                          : "Unknown error",
+                      status: "error",
+                    },
+                    "error"
+                  )
+                )
+              );
+            } finally {
+              controller.close();
+            }
           },
         });
 
         return new Response(stream, {
           headers: {
-            "Content-Type": "application/json",
-            "Transfer-Encoding": "chunked",
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+            "Access-Control-Allow-Origin": "*",
           },
         });
       }

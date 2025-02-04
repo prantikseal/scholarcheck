@@ -3,6 +3,8 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Scholarship } from "@/types";
+import { StreamingText } from "./StreamingText";
+import { IconExternalLink } from "@tabler/icons-react";
 
 export const ScholarshipCard: React.FC<Scholarship> = ({
   title,
@@ -13,8 +15,6 @@ export const ScholarshipCard: React.FC<Scholarship> = ({
   institution,
   applicationLink,
   requirements,
-  selectionProcess,
-  background,
 }) => {
   // Helper function to handle array or string formatting
   const formatList = (input: string[] | string | undefined) => {
@@ -41,13 +41,15 @@ export const ScholarshipCard: React.FC<Scholarship> = ({
           {/* Header Section */}
           <div className="flex flex-col gap-3 mb-4">
             <div className="flex items-start justify-between gap-4">
-              <h3 className="text-xl font-semibold text-blue-200 line-clamp-2">
-                {title || "Scholarship Title"}
-              </h3>
+              <StreamingText
+                text={title || "Scholarship Title"}
+                className="text-xl font-semibold text-blue-200 line-clamp-2"
+                speed={20}
+              />
             </div>
             {amount && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500/10 text-green-400 shrink-0">
-                {amount}
+                <StreamingText text={amount} speed={15} />
               </span>
             )}
             {institution && (
@@ -65,7 +67,11 @@ export const ScholarshipCard: React.FC<Scholarship> = ({
                     d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
                   />
                 </svg>
-                <span className="line-clamp-1">{institution}</span>
+                <StreamingText
+                  text={institution}
+                  className="line-clamp-1"
+                  speed={15}
+                />
               </div>
             )}
           </div>
@@ -73,9 +79,11 @@ export const ScholarshipCard: React.FC<Scholarship> = ({
           <div className="space-y-4">
             {/* Description */}
             {description && (
-              <p className="text-gray-300 text-sm line-clamp-3">
-                {description}
-              </p>
+              <StreamingText
+                text={description}
+                className="text-gray-300 text-sm line-clamp-3"
+                speed={10}
+              />
             )}
 
             {/* Details Section */}
@@ -102,34 +110,11 @@ export const ScholarshipCard: React.FC<Scholarship> = ({
                     <span className="text-xs text-blue-300 block mb-1">
                       Eligibility
                     </span>
-                    <p className="text-sm text-gray-300">{eligibility}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Background */}
-              {background && (
-                <div className="flex items-start gap-2">
-                  <div className="w-5 h-5 mt-1 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                    <svg
-                      className="w-3 h-3 text-blue-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                      />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-xs text-blue-300 block mb-1">
-                      Background
-                    </span>
-                    <p className="text-sm text-gray-300">{background}</p>
+                    <StreamingText
+                      text={eligibility}
+                      className="text-sm text-gray-300"
+                      speed={15}
+                    />
                   </div>
                 </div>
               )}
@@ -152,9 +137,11 @@ export const ScholarshipCard: React.FC<Scholarship> = ({
                       />
                     </svg>
                   </div>
-                  <span className="text-sm text-blue-300 flex-1">
-                    Deadline: {deadline}
-                  </span>
+                  <StreamingText
+                    text={`Deadline: ${deadline}`}
+                    className="text-sm text-blue-300 flex-1"
+                    speed={15}
+                  />
                 </div>
               )}
 
@@ -167,22 +154,10 @@ export const ScholarshipCard: React.FC<Scholarship> = ({
                   <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
                     {formattedRequirements.map((req, index) => (
                       <li key={index} className="line-clamp-1">
-                        {req}
+                        <StreamingText text={req} speed={15} />
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
-
-              {/* Selection Process */}
-              {selectionProcess && (
-                <div className="mt-2">
-                  <h4 className="text-sm font-medium text-blue-300 mb-1">
-                    Selection Process
-                  </h4>
-                  <p className="text-sm text-gray-300 line-clamp-2">
-                    {selectionProcess}
-                  </p>
                 </div>
               )}
             </div>
@@ -201,19 +176,7 @@ export const ScholarshipCard: React.FC<Scholarship> = ({
               whileTap={{ scale: 0.98 }}
             >
               Apply Now
-              <svg
-                className="ml-2 -mr-1 h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                />
-              </svg>
+              <IconExternalLink className="ml-2 -mr-1 h-4 w-4" />
             </motion.a>
           </div>
         )}

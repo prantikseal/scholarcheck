@@ -15,6 +15,7 @@ import {
   IconCertificate,
   IconArrowRight,
 } from "@tabler/icons-react";
+import { StreamingText } from "@/components/StreamingText";
 
 // const SEARCH_STEPS = [
 //   "Analyzing student background",
@@ -138,7 +139,7 @@ export default function Home() {
       const { data: webResults } = await searchResponse.json();
       setSearchResults(webResults);
 
-      // Step 3: Generate final results
+      // Step 3: Generate final results with SSE
       setCurrentStep("Generating recommendations");
       const generateResponse = await fetch("/api/search", {
         method: "POST",
@@ -152,24 +153,55 @@ export default function Home() {
 
       if (!generateResponse.ok) throw new Error("Failed to generate results");
 
-      // Handle streaming response
       const reader = generateResponse.body?.getReader();
+      const decoder = new TextDecoder();
+
       if (!reader) throw new Error("Failed to get response reader");
 
-      let result = "";
+      let buffer = "";
+      const processEvents = (chunk: string) => {
+        const events = chunk.split("\n\n");
+        buffer = events.pop() || ""; // Keep incomplete event in buffer
+
+        for (const event of events) {
+          const lines = event.split("\n");
+          const eventType = lines[0].replace("event: ", "");
+          const data = JSON.parse(lines[1].replace("data: ", ""));
+
+          switch (eventType) {
+            case "connect":
+              console.log("Connected to SSE stream");
+              break;
+            case "summary":
+              setSummary(data);
+              break;
+            case "scholarship":
+              setScholarships((prev) => [...prev, data]);
+              break;
+            case "recommendations":
+              setRecommendations(data);
+              break;
+            case "resources":
+              setAdditionalResources(data);
+              break;
+            case "complete":
+              console.log("Stream complete");
+              break;
+          }
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        result += new TextDecoder().decode(value);
+
+        const chunk = decoder.decode(value, { stream: true });
+        const fullChunk = buffer + chunk;
+        processEvents(fullChunk);
       }
 
-      const finalResults = JSON.parse(result).data;
-
-      // Update UI with results
-      setScholarships(finalResults.scholarships);
-      setSummary(finalResults.summary);
-      setRecommendations(finalResults.recommendations || []);
-      setAdditionalResources(finalResults.additionalResources || []);
+      // Process any remaining buffer
+      if (buffer) processEvents(buffer);
     } catch (error) {
       setError(
         error instanceof Error
@@ -278,7 +310,13 @@ export default function Home() {
               transition={{ duration: 0.5 }}
               className="mt-6 max-w-3xl mx-auto"
             >
-              <p className="text-sm text-gray-400 mb-3">Example searches:</p>
+              <p className="text-sm text-gray-400 mb-3">
+                <StreamingText
+                  text="Example searches:"
+                  speed={20}
+                  showCursor={false}
+                />
+              </p>
               <div className="flex flex-wrap gap-2">
                 {EXAMPLE_QUERIES.map((query, index) => (
                   <motion.button
@@ -288,7 +326,7 @@ export default function Home() {
                     whileTap={{ scale: 0.95 }}
                     className="text-sm px-4 py-2 rounded-full bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 transition-colors"
                   >
-                    {query}
+                    <StreamingText text={query} speed={15} showCursor={false} />
                   </motion.button>
                 ))}
               </div>
@@ -336,7 +374,7 @@ export default function Home() {
               exit={{ opacity: 0 }}
               className="mt-8 p-4 bg-red-500/10 text-red-400 rounded-lg max-w-2xl mx-auto border border-red-500/20"
             >
-              {error}
+              <StreamingText text={error} speed={20} showCursor={false} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -351,9 +389,49 @@ export default function Home() {
               className="mt-12 p-6 bg-blue-500/10 rounded-xl max-w-3xl mx-auto border border-blue-500/20"
             >
               <h2 className="text-xl font-semibold mb-2 text-blue-300">
-                Summary
+                <StreamingText text="Summary" speed={20} showCursor={false} />
               </h2>
-              <TextGenerateEffect words={summary} className="text-blue-200" />
+              <StreamingText
+                text={summary}
+                className="text-blue-200"
+                speed={15}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {scholarships.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.8 }}
+              className="mt-12"
+            >
+              <h2 className="text-2xl font-semibold mb-6 text-center text-blue-200">
+                <StreamingText
+                  text="Available Scholarships"
+                  speed={20}
+                  showCursor={false}
+                />
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {scholarships.map((scholarship, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{
+                      duration: 0.5,
+                      delay: index * 0.1,
+                    }}
+                  >
+                    <ScholarshipCard {...scholarship} />
+                  </motion.div>
+                ))}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -368,7 +446,11 @@ export default function Home() {
               className="mt-8 p-6 bg-blue-500/10 rounded-xl max-w-3xl mx-auto border border-blue-500/20"
             >
               <h2 className="text-xl font-semibold mb-4 text-blue-300">
-                Recommendations
+                <StreamingText
+                  text="Recommendations"
+                  speed={20}
+                  showCursor={false}
+                />
               </h2>
               <ul className="space-y-2">
                 {recommendations.map((recommendation, index) => (
@@ -380,7 +462,12 @@ export default function Home() {
                     className="flex items-start gap-3"
                   >
                     <span className="text-blue-400">•</span>
-                    <span className="text-blue-200">{recommendation}</span>
+                    <StreamingText
+                      text={recommendation}
+                      className="text-blue-200"
+                      speed={15}
+                      showCursor={false}
+                    />
                   </motion.li>
                 ))}
               </ul>
@@ -398,7 +485,11 @@ export default function Home() {
               className="mt-8 p-6 bg-blue-500/10 rounded-xl max-w-3xl mx-auto border border-blue-500/20"
             >
               <h2 className="text-xl font-semibold mb-4 text-blue-300">
-                Additional Resources
+                <StreamingText
+                  text="Additional Resources"
+                  speed={20}
+                  showCursor={false}
+                />
               </h2>
               <div className="grid gap-4">
                 {additionalResources.map((resource, index) => (
@@ -413,11 +504,18 @@ export default function Home() {
                     className="block p-4 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 transition-colors border border-blue-500/20"
                   >
                     <h3 className="text-lg font-medium text-blue-300 mb-2">
-                      {resource.title}
+                      <StreamingText
+                        text={resource.title}
+                        speed={20}
+                        showCursor={false}
+                      />
                     </h3>
-                    <p className="text-sm text-blue-200">
-                      {resource.description}
-                    </p>
+                    <StreamingText
+                      text={resource.description}
+                      className="text-sm text-blue-200"
+                      speed={15}
+                      showCursor={false}
+                    />
                   </motion.a>
                 ))}
               </div>
@@ -435,7 +533,11 @@ export default function Home() {
               className="mt-8 p-6 bg-blue-500/10 rounded-xl max-w-3xl mx-auto border border-blue-500/20"
             >
               <h2 className="text-xl font-semibold mb-4 text-blue-300">
-                Search Results
+                <StreamingText
+                  text="Search Results"
+                  speed={20}
+                  showCursor={false}
+                />
               </h2>
               <div className="space-y-4">
                 {searchResults.map((result, index) => (
@@ -450,44 +552,21 @@ export default function Home() {
                     className="block p-4 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 transition-colors"
                   >
                     <h3 className="text-lg font-medium text-blue-300 mb-2">
-                      {result.title}
+                      <StreamingText
+                        text={result.title}
+                        speed={20}
+                        showCursor={false}
+                      />
                     </h3>
                     {result.snippet && (
-                      <p className="text-sm text-blue-200">{result.snippet}</p>
+                      <StreamingText
+                        text={result.snippet}
+                        className="text-sm text-blue-200"
+                        speed={15}
+                        showCursor={false}
+                      />
                     )}
                   </motion.a>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {scholarships.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.8 }}
-              className="mt-12"
-            >
-              <h2 className="text-2xl font-semibold mb-6 text-center text-blue-200">
-                Available Scholarships
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {scholarships.map((scholarship, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{
-                      duration: 0.5,
-                      delay: index * 0.1,
-                    }}
-                  >
-                    <ScholarshipCard {...scholarship} />
-                  </motion.div>
                 ))}
               </div>
             </motion.div>
