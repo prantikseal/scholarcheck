@@ -44,12 +44,12 @@ export const ScholarshipCard: React.FC<Scholarship> = ({
               <h3 className="text-xl font-semibold text-blue-200 line-clamp-2">
                 {title || "Scholarship Title"}
               </h3>
-              {amount && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500/10 text-green-400 whitespace-nowrap shrink-0">
-                  {amount}
-                </span>
-              )}
             </div>
+            {amount && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500/10 text-green-400 shrink-0">
+                {amount}
+              </span>
+            )}
             {institution && (
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <svg
