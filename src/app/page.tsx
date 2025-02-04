@@ -16,6 +16,7 @@ import {
   IconArrowRight,
 } from "@tabler/icons-react";
 import { StreamingText } from "@/components/StreamingText";
+import { SearchQuestionnaire } from "@/components/SearchQuestionnaire";
 
 // const SEARCH_STEPS = [
 //   "Analyzing student background",
@@ -95,6 +96,9 @@ export default function Home() {
   >([]);
   const [error, setError] = useState<string>("");
   const [showExamples, setShowExamples] = useState(true);
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false);
+  const [missingParams, setMissingParams] = useState<string[]>([]);
+  const [parsedParams, setParsedParams] = useState<Record<string, string> | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,6 +112,8 @@ export default function Home() {
     setAdditionalResources([]);
     setSearchResults([]);
     setShowExamples(false);
+    setShowQuestionnaire(false);
+    setParsedParams(null);
 
     try {
       // Step 1: Parse the query
@@ -122,8 +128,31 @@ export default function Home() {
       });
 
       if (!parseResponse.ok) throw new Error("Failed to parse query");
-      const { data: params } = await parseResponse.json();
+      const { data: params, missingParams: missing } = await parseResponse.json();
 
+      // If there are missing parameters, show the questionnaire
+      if (missing && missing.length > 0) {
+        setMissingParams(missing);
+        setParsedParams(params);
+        setShowQuestionnaire(true);
+        setLoading(false);
+        return;
+      }
+
+      await processSearch(params);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to search for scholarships"
+      );
+      console.error("Search error:", error);
+      setLoading(false);
+    }
+  };
+
+  const processSearch = async (params: Record<string, string>) => {
+    try {
       // Step 2: Search the web
       setCurrentStep("Searching scholarship databases");
       const searchResponse = await fetch("/api/search", {
@@ -161,7 +190,7 @@ export default function Home() {
       let buffer = "";
       const processEvents = (chunk: string) => {
         const events = chunk.split("\n\n");
-        buffer = events.pop() || ""; // Keep incomplete event in buffer
+        buffer = events.pop() || "";
 
         for (const event of events) {
           const lines = event.split("\n");
@@ -176,7 +205,7 @@ export default function Home() {
               setSummary(data);
               break;
             case "scholarship":
-              setScholarships((prev) => [...prev, data]);
+              setScholarships(prev => [...prev, data]);
               break;
             case "recommendations":
               setRecommendations(data);
@@ -200,7 +229,6 @@ export default function Home() {
         processEvents(fullChunk);
       }
 
-      // Process any remaining buffer
       if (buffer) processEvents(buffer);
     } catch (error) {
       setError(
@@ -213,6 +241,19 @@ export default function Home() {
       setLoading(false);
       setCurrentStep("");
     }
+  };
+
+  const handleQuestionnaireComplete = async (answers: Record<string, string>) => {
+    setShowQuestionnaire(false);
+    setLoading(true);
+
+    // Merge parsed params with questionnaire answers
+    const finalParams = {
+      ...parsedParams,
+      ...answers,
+    };
+
+    await processSearch(finalParams);
   };
 
   const containerVariants = {
@@ -311,11 +352,7 @@ export default function Home() {
               className="mt-6 max-w-3xl mx-auto"
             >
               <p className="text-sm text-gray-400 mb-3">
-                <StreamingText
-                  text="Example searches:"
-                  speed={20}
-                  showCursor={false}
-                />
+                Example searches:
               </p>
               <div className="flex flex-wrap gap-2">
                 {EXAMPLE_QUERIES.map((query, index) => (
@@ -326,7 +363,7 @@ export default function Home() {
                     whileTap={{ scale: 0.95 }}
                     className="text-sm px-4 py-2 rounded-full bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 transition-colors"
                   >
-                    <StreamingText text={query} speed={15} showCursor={false} />
+                    {query}
                   </motion.button>
                 ))}
               </div>
@@ -570,6 +607,19 @@ export default function Home() {
                 ))}
               </div>
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showQuestionnaire && (
+            <SearchQuestionnaire
+              missingParams={missingParams}
+              onComplete={handleQuestionnaireComplete}
+              onCancel={() => {
+                setShowQuestionnaire(false);
+                setLoading(false);
+              }}
+            />
           )}
         </AnimatePresence>
       </div>

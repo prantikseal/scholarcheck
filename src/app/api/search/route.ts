@@ -17,12 +17,28 @@ import { Scholarship } from "@/types";
 //   "Preparing additional resources",
 // ];
 
+// Constants
+const REQUIRED_PARAMS = ["caste", "religion", "state", "educationLevel"];
+const BATCH_SIZE = 2; // Reduced batch size
+const BATCH_DELAY = 30; // Reduced delay between batches
+const MAX_TIMEOUT = 20000; // 20 seconds max timeout
+
 function sendEvent(
   data: Record<string, unknown> | string[] | string,
   eventType: string
 ) {
   return `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
 }
+
+// Timeout promise
+const timeoutPromise = (ms: number) =>
+  new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("Operation timed out")), ms)
+  );
+
+// Race promise with timeout
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+  Promise.race([promise, timeoutPromise(ms)]);
 
 // Step 1: Parse natural language query
 export async function POST(req: Request) {
@@ -34,14 +50,28 @@ export async function POST(req: Request) {
     switch (searchType) {
       case "parseQuery": {
         const { query } = body;
-        const parsedQuery = await parseQueryToJSON(query);
-        return NextResponse.json({ success: true, data: parsedQuery });
+        const parsedQuery = await withTimeout(
+          parseQueryToJSON(query),
+          MAX_TIMEOUT
+        );
+        const missingParams = REQUIRED_PARAMS.filter(
+          (param) => !parsedQuery[param]
+        );
+
+        return NextResponse.json({
+          success: true,
+          data: parsedQuery,
+          missingParams,
+        });
       }
 
       case "searchWeb": {
         const { params } = body;
         const searchQuery = `${params.caste} ${params.religion} scholarships in ${params.state} for ${params.educationLevel}`;
-        const searchResults = await searchGoogle(searchQuery);
+        const searchResults = await withTimeout(
+          searchGoogle(searchQuery),
+          MAX_TIMEOUT
+        );
         return NextResponse.json({ success: true, data: searchResults });
       }
 
@@ -59,21 +89,21 @@ export async function POST(req: Request) {
                 )
               );
 
-              // Start AI processing
+              // Start AI processing with timeout
               const resultPromise = generateScholarshipSearch({
                 ...params,
                 searchResults,
               });
 
-              // Send a processing status immediately
+              // Send processing status
               controller.enqueue(
                 new TextEncoder().encode(
                   sendEvent({ status: "processing" }, "status")
                 )
               );
 
-              // Wait for AI response
-              const result = await resultPromise;
+              // Wait for AI response with timeout
+              const result = await withTimeout(resultPromise, MAX_TIMEOUT);
               const validatedResponse = validateResponse(result);
 
               if (!validatedResponse.isValid) {
@@ -87,12 +117,13 @@ export async function POST(req: Request) {
                 )
               );
 
-              // Process scholarships in batches of 3 for better performance
+              // Process scholarships in smaller batches with shorter delays
               const scholarships = validatedResponse.data.scholarships;
-              const batchSize = 3;
 
-              for (let i = 0; i < scholarships.length; i += batchSize) {
-                const batch = scholarships.slice(i, i + batchSize);
+              for (let i = 0; i < scholarships.length; i += BATCH_SIZE) {
+                const batch = scholarships.slice(i, i + BATCH_SIZE);
+
+                // Process batch concurrently
                 await Promise.all(
                   batch.map(async (scholarship: Scholarship) => {
                     controller.enqueue(
@@ -105,17 +136,18 @@ export async function POST(req: Request) {
                     );
                   })
                 );
+
                 // Smaller delay between batches
-                if (i + batchSize < scholarships.length) {
-                  await new Promise((resolve) => setTimeout(resolve, 50));
+                if (i + BATCH_SIZE < scholarships.length) {
+                  await new Promise((resolve) =>
+                    setTimeout(resolve, BATCH_DELAY)
+                  );
                 }
               }
 
-              // Send recommendations and resources together if available
-              const finalDataPromises = [];
-
-              if (validatedResponse.data.recommendations) {
-                finalDataPromises.push(
+              // Send remaining data concurrently
+              await Promise.all([
+                validatedResponse.data.recommendations &&
                   controller.enqueue(
                     new TextEncoder().encode(
                       sendEvent(
@@ -123,12 +155,8 @@ export async function POST(req: Request) {
                         "recommendations"
                       )
                     )
-                  )
-                );
-              }
-
-              if (validatedResponse.data.additionalResources) {
-                finalDataPromises.push(
+                  ),
+                validatedResponse.data.additionalResources &&
                   controller.enqueue(
                     new TextEncoder().encode(
                       sendEvent(
@@ -136,12 +164,8 @@ export async function POST(req: Request) {
                         "resources"
                       )
                     )
-                  )
-                );
-              }
-
-              // Wait for all final data to be sent
-              await Promise.all(finalDataPromises);
+                  ),
+              ]);
 
               // Send completion event
               controller.enqueue(
@@ -150,18 +174,23 @@ export async function POST(req: Request) {
                 )
               );
             } catch (error) {
-              // Send error event if something fails
+              // Handle timeout and other errors
+              const errorMessage =
+                error instanceof Error ? error.message : "Unknown error";
+              const errorType =
+                error instanceof Error &&
+                error.message === "Operation timed out"
+                  ? "timeout"
+                  : "error";
+
               controller.enqueue(
                 new TextEncoder().encode(
                   sendEvent(
                     {
-                      error:
-                        error instanceof Error
-                          ? error.message
-                          : "Unknown error",
-                      status: "error",
+                      error: errorMessage,
+                      status: errorType,
                     },
-                    "error"
+                    errorType
                   )
                 )
               );
@@ -189,12 +218,20 @@ export async function POST(req: Request) {
     }
   } catch (error) {
     console.error("Error in scholarship search:", error);
+    const isTimeout =
+      error instanceof Error &&
+      (error.message === "Operation timed out" ||
+        error.message === "socket hang up");
+
     return NextResponse.json(
       {
-        error: "Failed to process request",
+        error: isTimeout
+          ? "Request timed out. Please try again."
+          : "Failed to process request",
         details: error instanceof Error ? error.message : "Unknown error",
+        type: isTimeout ? "timeout" : "error",
       },
-      { status: 500 }
+      { status: isTimeout ? 408 : 500 }
     );
   }
 }
