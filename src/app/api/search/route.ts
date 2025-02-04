@@ -49,9 +49,24 @@ export async function POST(req: Request) {
           throw new Error("Failed to parse AI response");
         }
 
-        return NextResponse.json({
-          success: true,
-          data: validatedResponse.data,
+        // Create a streaming response
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              JSON.stringify({
+                success: true,
+                data: validatedResponse.data,
+              })
+            );
+            controller.close();
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "application/json",
+            "Transfer-Encoding": "chunked",
+          },
         });
       }
 

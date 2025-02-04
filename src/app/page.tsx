@@ -151,7 +151,19 @@ export default function Home() {
       });
 
       if (!generateResponse.ok) throw new Error("Failed to generate results");
-      const { data: finalResults } = await generateResponse.json();
+
+      // Handle streaming response
+      const reader = generateResponse.body?.getReader();
+      if (!reader) throw new Error("Failed to get response reader");
+
+      let result = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        result += new TextDecoder().decode(value);
+      }
+
+      const finalResults = JSON.parse(result).data;
 
       // Update UI with results
       setScholarships(finalResults.scholarships);
