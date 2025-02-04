@@ -39,10 +39,11 @@ interface Scholarship {
 }
 
 const EXAMPLE_QUERIES = [
-  "Find scholarships for Hindu SC students in engineering",
-  "Muslim OBC scholarships for medical studies",
-  "Christian minority scholarships in Maharashtra",
-  "Buddhist student scholarships for postgraduate studies",
+  "Find scholarships for Hindu SC students in engineering in Karnataka",
+  "Muslim OBC scholarships for medical studies in Maharashtra",
+  "Christian minority scholarships in Maharashtra for postgraduate studies based on merit",
+  "Buddhist student scholarships for postgraduate studies in Pune",
+  "Scholarships for students with less income in Kolkata",
 ];
 
 const FEATURES = [
@@ -107,7 +108,7 @@ export default function Home() {
         setCurrentStep(SEARCH_STEPS[stepIndex]);
         stepIndex++;
       }
-    }, 2000);
+    }, 5000);
 
     try {
       // Use AI to parse the query into structured data

@@ -4,14 +4,12 @@ import { cn } from "@/lib/utils";
 
 export const SparklesCore = React.memo(
   ({
-    // background,
     minSize,
     maxSize,
     particleCount,
     className,
     particleColor,
   }: {
-    // background?: boolean;
     minSize?: number;
     maxSize?: number;
     particleCount?: number;
@@ -76,7 +74,6 @@ export const SparklesText = ({
   return (
     <div className={cn("relative", className)}>
       <SparklesCore
-        // background={false}
         minSize={0.4}
         maxSize={1}
         particleCount={30}

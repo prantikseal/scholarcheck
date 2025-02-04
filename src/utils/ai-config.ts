@@ -133,22 +133,58 @@ interface GoogleSearchResponse {
 
 // Add Google Search integration
 async function searchGoogle(query: string): Promise<GoogleSearchResult[]> {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_SEARCH_API_KEY;
   const searchEngineId = process.env.NEXT_PUBLIC_GOOGLE_CSE_ID;
 
+  if (!apiKey || !searchEngineId) {
+    console.error("Missing Google API key or Search Engine ID");
+    return [];
+  }
+
   try {
+    const params = new URLSearchParams({
+      key: apiKey,
+      cx: searchEngineId,
+      q: query,
+      num: "10", // Maximum results per page
+      safe: "active", // Safe search setting
+      gl: "in", // Geolocation set to India for more relevant results
+      cr: "countryIN", // Country restrict to India
+      lr: "lang_en", // Language restrict to English
+      sort: "date", // Sort by date to get recent scholarships
+    });
+
     const response = await fetch(
-      `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(
-        query
-      )}`
+      `https://customsearch.googleapis.com/customsearch/v1?${params.toString()}`
     );
 
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Google Search API Error:", errorData);
+      throw new Error(
+        errorData.error?.message || "Failed to fetch search results"
+      );
+    }
+
     const data: GoogleSearchResponse = await response.json();
-    return (data.items?.slice(0, 5) || []).map((item: GoogleSearchItem) => ({
-      title: item.title,
-      link: item.link,
-      snippet: item.snippet,
-    }));
+
+    if (!data.items || data.items.length === 0) {
+      console.log("No search results found");
+      return [];
+    }
+
+    // Map and clean the results
+    return data.items
+      .map((item: GoogleSearchItem) => ({
+        title: item.title?.replace(/\s+/g, " ").trim() || "",
+        link: item.link || "",
+        snippet: item.snippet?.replace(/\s+/g, " ").trim() || "",
+      }))
+      .filter(
+        (result) =>
+          // Filter out results that don't have both title and link
+          result.title && result.link
+      );
   } catch (error) {
     console.error("Error searching Google:", error);
     return [];
@@ -164,7 +200,7 @@ export const generateScholarshipSearch = async (params: {
 }) => {
   try {
     // First, get relevant search results
-    const searchQuery = `${params.caste} ${params.religion} scholarships ${params.state} ${params.educationLevel}`;
+    const searchQuery = `${params.caste} ${params.religion} scholarships in ${params.state} for ${params.educationLevel}`;
     const searchResults = await searchGoogle(searchQuery);
 
     console.log("Search Results:", searchResults);
